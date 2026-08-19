@@ -109,3 +109,29 @@ When the top score falls below the threshold:
 - No transaction around delete-then-reinsert during re-ingestion
 - `document_name` is client-supplied, so two different files with the same name will overwrite each other
 - No maximum chunk size — a document with one very long paragraph produces one oversized chunk
+
+## Running with Docker
+
+Requires Docker Desktop only. Postgres and Ollama both run in containers.
+
+    git clone https://github.com/sarmadnagori/rag-document-qa
+    cd rag-document-qa
+    cp .env.example .env
+    docker compose up
+
+First run downloads about 2 GB of images. Once the containers are up, pull
+both models into the Ollama container:
+
+    docker compose exec ollama ollama pull llama3.2
+    docker compose exec ollama ollama pull nomic-embed-text
+
+Another ~2.3 GB, once only — it persists in a named volume.
+
+Then open http://localhost:8002/docs
+
+Ingestion embeds every chunk, and Ollama in a container runs on CPU, so a
+long document takes a while. For faster inference, remove the `ollama`
+service and set `OLLAMA_HOST=http://host.docker.internal:11434` to use a
+local Ollama install.
+
+`docker compose down -v` wipes the database and the downloaded models.

@@ -1,0 +1,27 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8002:8000"
+    env_file: .env
+    environment:
+      DB_HOST: db
+      OLLAMA_HOST: http://ollama:11434
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ragdb
+      POSTGRES_USER: sarmadsaeed
+      POSTGRES_PASSWORD: 88888888
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  ollama:
+    image: ollama/ollama
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  postgres_data:
+  ollama_data:

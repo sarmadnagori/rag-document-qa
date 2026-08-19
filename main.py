@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 import psycopg2
 import os
-from dotenv import load_dotenv,THRESHOLD
+from dotenv import load_dotenv
 from pydantic import BaseModel
 import json
 import ollama
@@ -19,8 +19,17 @@ class DOCUMENT(BaseModel):
 DB_NAME = os.getenv("DB_NAME")
 DB_USER = os.getenv("DB_USER")
 DB_HOST = os.getenv("DB_HOST")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
 
-conn=psycopg2.connect(dbname=DB_NAME,user=DB_USER,host=DB_HOST)
+def get_conn():
+    return psycopg2.connect(
+        dbname=DB_NAME,
+        user=DB_USER,
+        host=DB_HOST,
+        password=DB_PASSWORD
+    )
+
+conn=get_conn()
 cursor=conn.cursor()
 
 cursor.execute("""CREATE TABLE IF NOT EXISTS semantic(
@@ -46,7 +55,10 @@ def similarity(v1, v2):
 def ask_model(prompt):
     response=ollama.chat(
         model="llama3.2",
-        messages=[{"role":"user","content":prompt}]
+        messages=[{"role":"user","content":prompt}],
+        options={"temperature": 0}
+         
+
     )
     return response.message.content
 
@@ -54,7 +66,7 @@ def ask_model(prompt):
 def retrieve(q):
 
 
-     conn=psycopg2.connect(dbname=DB_NAME,user=DB_USER,host=DB_HOST)
+     conn=get_conn()
      cursor=conn.cursor()
      
 
@@ -135,7 +147,7 @@ def ask(q: str):
     
 @app.post("/documents")
 def get_document(document:DOCUMENT):
-    conn=psycopg2.connect(dbname=DB_NAME,user=DB_USER,host=DB_HOST)
+    conn=get_conn()
     cursor=conn.cursor()
     cursor.execute("DELETE FROM semantic WHERE document_name=%s",(document.document_name,))
     chunks=document.text.split("\n\n")
@@ -146,7 +158,6 @@ def get_document(document:DOCUMENT):
     conn.commit()
     conn.close()
     return {"chunks_stored": len(chunks)}
-
 
 
 
