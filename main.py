@@ -8,7 +8,16 @@ import ollama
 import math
 
 load_dotenv()
-app=FastAPI()
+app = FastAPI(
+    title="Document Q&A",
+    description="A FastAPI service that ingests documents, retrieves relevant passages by meaning, and answers questions grounded in the retrieved text — refusing rather than guessing when nothing relevant is found.",
+    version="0.2.0",
+)
+
+
+
+
+
 THRESHOLD = 0.43      # derived from measured score distributions: far-miss max 0.404, answerable min 0.464
 
 
@@ -16,10 +25,28 @@ class DOCUMENT(BaseModel):
     text: str
     document_name: str
 
+
+class Hit(BaseModel):
+    text: str
+    score: float
+    document_name: str
+    chunk_index: int
+
+class AskResponse(BaseModel):
+    query: str
+    reply: str
+    score: float
+    top3: list[Hit]
+
+class SearchResponse(BaseModel):
+    query: str
+    top3: list[Hit]
+
 DB_NAME = os.getenv("DB_NAME")
 DB_USER = os.getenv("DB_USER")
 DB_HOST = os.getenv("DB_HOST")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
+
 
 def get_conn():
     return psycopg2.connect(
@@ -77,7 +104,7 @@ def retrieve(q):
      for row in rows:
          chunk_vector = json.loads(row[3])
          score=similarity(query_vector,chunk_vector)
-         results.append({"text": row[2], "score": score,"DocumentName":row[1],"ChunkIndex":row[0]})
+         results.append({"text": row[2], "score": score,"document_name":row[1],"chunk_index":row[0]})
 
          
      
@@ -91,10 +118,20 @@ def retrieve(q):
 
 
 
-@app.get("/search")
+@app.get(
+    "/search",
+    response_model=SearchResponse,
+    summary="Retrieve the most relevant document chunks",
+    description="Embeds the query and returns the three most semantically "
+    "similar chunks from the indexed documents, ranked by score, along with "
+    "their source document name and chunk index.\n\n"
+    "This endpoint performs retrieval only. No model is called, no relevance "
+    "threshold is applied, and no answer is generated — chunks are returned "
+    "even when nothing is a good match. Use /ask for a generated answer; use "
+    "this endpoint to inspect what retrieval is finding.",
+)
 def get_word(q: str):
     return {"query": q, "top3": retrieve(q)}
-
 
 
 
@@ -136,7 +173,18 @@ Answer:"""
     }
 
 
-@app.post("/ask")
+@app.post(
+    "/ask",
+    response_model=AskResponse,
+    summary="Answer a question using the indexed documents",
+    description="Embeds the question, retrieves the most similar chunks from the "
+    "indexed documents, and generates an answer grounded in that retrieved "
+    "text. The response includes the answer along with the source chunks "
+    "it was based on.\n\n"
+    "If no chunk is similar enough to the question, the endpoint does not "
+    "guess — it returns a refusal stating the answer is not present in "
+    "the documents. This is expected behaviour, not an error."
+)
 def ask(q: str):
     return answer(q)
 
