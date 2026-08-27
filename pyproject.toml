@@ -12,5 +12,6 @@ dependencies = [
     "postgres>=4.0",
     "pypdf>=6.16.2",
     "python-docx>=1.2.0",
+    "python-multipart>=0.0.32",
     "uvicorn>=0.52.0",
 ]
