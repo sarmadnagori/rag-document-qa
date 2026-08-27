@@ -11,6 +11,9 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 import io
 import pypdf
 import docx
+from fastapi.middleware.cors import CORSMiddleware
+
+
 
 load_dotenv()
 app = FastAPI(
@@ -20,7 +23,12 @@ app = FastAPI(
 )
 
 
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 THRESHOLD = 0.43      # derived from measured score distributions: far-miss max 0.404, answerable min 0.464
