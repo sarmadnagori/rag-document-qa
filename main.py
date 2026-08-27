@@ -6,6 +6,11 @@ from pydantic import BaseModel
 import json
 import ollama
 import math
+from fastapi import UploadFile,HTTPException
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+import io
+import pypdf
+import docx
 
 load_dotenv()
 app = FastAPI(
@@ -188,25 +193,58 @@ Answer:"""
 def ask(q: str):
     return answer(q)
 
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=800,
+    chunk_overlap=100,
+    separators=["\n\n", "\n", ". ", " ", ""],
+)
 
-    
+def extract_pdf(raw):
+    reader = pypdf.PdfReader(io.BytesIO(raw))
+    return "\n\n".join(page.extract_text() or "" for page in reader.pages)
+
+
+def extract_docx(raw):
+    document = docx.Document(io.BytesIO(raw))
+    return "\n\n".join(p.text for p in document.paragraphs)
 
     
     
 @app.post("/documents")
-def get_document(document:DOCUMENT):
-    conn=get_conn()
-    cursor=conn.cursor()
-    cursor.execute("DELETE FROM semantic WHERE document_name=%s",(document.document_name,))
-    chunks=document.text.split("\n\n")
-    for item,chunk in enumerate(chunks,start=0):
-        vector = embed(chunk)              
+async def get_document(file: UploadFile):
+    raw = await file.read()
+    name = file.filename
+
+    if name.endswith(".pdf"):
+        text = extract_pdf(raw)
+    elif name.endswith(".docx"):
+        text = extract_docx(raw)
+    else:
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            raise HTTPException(
+                status_code=400,
+                detail="File is not valid UTF-8 text. Supported: .txt, .pdf, .docx",
+            )
+
+    chunks = splitter.split_text(text)
+    if not chunks:
+        raise HTTPException(
+            status_code=400,
+            detail="No text could be extracted. The file may be a scanned image requiring OCR.",
+        )
+
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM semantic WHERE document_name=%s", (name,))
+    for item, chunk in enumerate(chunks):
+        vector = embed(chunk)
         vector_string = json.dumps(vector)
-        cursor.execute("INSERT INTO semantic (document_name,chunk_index,text,embedding) VALUES (%s,%s,%s,%s) ",(document.document_name,item,chunk,vector_string))
+        cursor.execute(
+            "INSERT INTO semantic (document_name,chunk_index,text,embedding) VALUES (%s,%s,%s,%s)",
+            (name, item, chunk, vector_string),
+        )
     conn.commit()
     conn.close()
     return {"chunks_stored": len(chunks)}
-
-
-
-
