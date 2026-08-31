@@ -36,9 +36,7 @@ app.add_middleware(
 THRESHOLD = 0.43      # derived from measured score distributions: far-miss max 0.404, answerable min 0.464
 
 
-class DOCUMENT(BaseModel):
-    text: str
-    document_name: str
+
 
 
 class Hit(BaseModel):
@@ -56,6 +54,10 @@ class AskResponse(BaseModel):
 class SearchResponse(BaseModel):
     query: str
     top3: list[Hit]
+
+class DocumentSummary(BaseModel):
+    document_name: str
+    chunk_count: int
 
 DB_NAME = os.getenv("DB_NAME")
 DB_USER = os.getenv("DB_USER")
@@ -258,3 +260,36 @@ async def get_document(file: UploadFile):
     conn.commit()
     conn.close()
     return {"chunks_stored": len(chunks)}
+
+@app.get(
+    "/documents",
+    response_model=list[DocumentSummary],
+    summary="List all indexed documents",
+    description="Returns every document currently in the index, with the number "
+    "of chunks stored for each, sorted by name.\n\n"
+    "Chunk count reflects how the text was split, not the size of the original "
+    "file — a long document with few natural break points may produce fewer "
+    "chunks than a short one. The list is global: it includes every document "
+    "in the index regardless of who uploaded it.",
+)
+def list_documents():
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute("SELECT document_name, count(*) FROM semantic GROUP BY document_name ORDER BY document_name")
+    rows = cursor.fetchall()
+    conn.close()
+    return [{"document_name": row[0], "chunk_count": row[1]} for row in rows]
+
+
+@app.delete("/documents/{name}")
+def delete_document(name: str):
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM semantic WHERE document_name=%s", (name,))
+    count = cursor.rowcount
+    if count == 0:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Document not found")
+    conn.commit()
+    conn.close()
+    return {"deleted": name, "chunks_deleted": count}
