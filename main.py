@@ -25,11 +25,13 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://sarmaddocqa-ui.vercel.app",
+        "http://localhost:5173",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 THRESHOLD = 0.43      # derived from measured score distributions: far-miss max 0.404, answerable min 0.464
 
