@@ -13,7 +13,7 @@ services:
     environment:
       POSTGRES_DB: ragdb
       POSTGRES_USER: sarmadsaeed
-      POSTGRES_PASSWORD: 88888888
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
